@@ -1,6 +1,6 @@
 ---
 title: Continuous Outcome Analysis
-author: YOURNAME
+author: Amanda Skarlupka
 date: "`r Sys.Date()`"
 #bibliography: ../media/references.bib
 output: 
@@ -31,6 +31,8 @@ library('corrplot') #to make a correlation plot. You can use other options/packa
 library('visdat') #for missing data visualization
 library('caret') #for model fitting
 library('earth')
+library('readr')
+library('tidyverse')
 ```
 
 
@@ -40,7 +42,11 @@ We will be exploring and fitting a dataset of norovirus outbreaks. You can look 
 ```{r loaddata}
 #Write code that loads the dataset and does a quick check to make sure the data loaded ok (using e.g. `str` and `summary` or similar such functions).
 
-#data_raw <- (FILL HERE)
+data_raw <- read_csv("norodata.csv")
+
+str(data_raw)
+head(data_raw)
+glimpse(data_raw)
 
 ```
 
@@ -54,7 +60,8 @@ Let's assume that our main outcome of interest is the fraction of individuals th
 
 ```{r createvar}
 # Use the `mutate()` function from the `dplyr` package to create a new column with this value. Call the new variable `fracinf`.
-#d <- data_raw %>% dplyr::mutate(FILL HERE)
+d <- data_raw %>%
+  dplyr::mutate(fracinf = CasesAll / RiskAll)
 ```
 
 
@@ -70,9 +77,34 @@ Use both text summaries and plots to take a look at the new variable you created
 
 ```{r checkdata}
 #Write code that takes a look at the values of the `fracinf` variable you created. Look at both text summaries and a figure.
+
+summary(d$fracinf)
+
+histogram <- d %>%
+  ggplot(aes(x = fracinf)) +
+  geom_histogram(binwidth = .05) +
+  labs(title = "Distribution of Infected Case Rates of Norovirus Outbreaks", x = "Fraction Infected", y = "Count")
+
+histogram
 ```
 
-We notice there are NAs in this variable and the distribution is not normal. The latter is somewhat expected since our variable is a proportion, so it has to be between 0 and 1. There are also a lot of infinite values. Understand where they come from. 
+We notice there are 120 NAs in this variable and the distribution is not normal. The latter is somewhat expected since our variable is a proportion, so it has to be between 0 and 1. There are also a lot of infinite values. Understand where they come from. 
+
+```{r}
+#This is me trying to understand where the infinite values come from. I'm going to select only the variables that I'm interested in so that the data is easier to look at. I think the infinite values might be coming from dividing the 0/0 but that doesn't really make sense because why would there be a case report. So I'll double check
+
+infinite_values <- d %>%
+  select(c(CasesAll, RiskAll, fracinf, RateAll))
+head(infinite_values)
+
+#The infinite values are coming from where RiskAll is equal to 0, giving an equation of 0/x. I wonder if there is any instances where CasesAll is 0. 
+
+infinite_values %>%
+  filter(CasesAll == 0)
+
+#Nope, there are no instances where there are no cases. 
+```
+
 
 Let's take a look at the `RateAll` variable recorded in the dataset and compare it to ours. 
 First, create a plot that lets you quickly see if/how the variables differ. 
@@ -81,15 +113,39 @@ First, create a plot that lets you quickly see if/how the variables differ.
 # Plot one variable on the x axis, the other on the y axis
 # also plot the difference of the 2 variables
 # make sure you adjust so both are in the same units
+
+d %>%
+  ggplot(aes(x = fracinf, y = (RateAll / 100))) +
+  geom_point() +
+  labs(x = "Fraction infected: RiskAll/CasesAll", y = "RateAll (Provided)")
+
+d %>%
+  ggplot(aes(x = fracinf, y = fracinf - (RateAll/100))) +
+  geom_point()
+
+d %>%
+  ggplot(aes(x = RateAll/100, y = fracinf - (RateAll/100))) +
+  geom_point()
+
 ```
 
 Both ways of plotting the data show that for most outbreaks, the two ways of getting the outcome agree. So that's good. But we need to look closer and resolve the problem with infinite values above. Check to see what the `RateAll` variable has for those infinite values.
 
 ```{r infvalues}
-#Write code that looks at the values of RateAll where we have inifinite values
+#Write code that looks at the values of RateAll where we have infinite values
+infinite_values %>%
+  filter(fracinf == Inf) %>%
+  head()
+
+infinite_values %>%
+  filter(fracinf == Inf) %>%
+  summarise(avg = mean(RateAll))
+
+#The RateAll values are 0 instead of Inf. 
+  
 ```
 
-You should find that all of the reported values are 0. So what makes more sense? You should have figured out that the infinite values in our computed variables arise because the `RiskAll` variable is 0. That variable contains the total number of persons at risk for an outbreak. If nobody is at risk of getting infected, of course, we can't get any infected. So `RateAll` being 0 is technically correct. But does it make sense to include "outbreaks" in our analysis where nobody is at risk of getting infected? One should question how those got into the spreadsheet in the first place. 
+I found that all of the reported values are 0. So what makes more sense? You should have figured out that the infinite values in our computed variables arise because the `RiskAll` variable is 0. That variable contains the total number of persons at risk for an outbreak. If nobody is at risk of getting infected, of course, we can't get any infected. So `RateAll` being 0 is technically correct. But does it make sense to include "outbreaks" in our analysis where nobody is at risk of getting infected? One should question how those got into the spreadsheet in the first place. 
 
 **Having to deal with "weirdness" in your data like this example is common. You often need to make a decision based on best judgment.** 
 
@@ -97,6 +153,13 @@ Here, I think that if nobody is at risk, we shouldn't include those outbreaks in
 
 ```{r filter1}
 #Write code that removes all observations that have an outcome that is not very useful, i.e. either NA or infinity. Then look at the outcome variable again to make sure things are fixed. Also check the size of the new dataset to see by how much it shrunk.
+
+d_red <- d %>%
+  filter(RiskAll != 0)
+
+#Doing for my smaller dataset just to make the table easier to view
+infinite_values_red <- infinite_values %>%
+  filter(RiskAll != 0)
 ```
 
 
@@ -113,6 +176,10 @@ Note that - as often happens for real data - there are inconsistencies between t
 
 ```{r reducepredictors}
 #write code to select the specified variables
+d_reduced <- d_red %>%
+  select(c(Action1, CasesAll, Category, Country, Deaths, gg2c4, Hemisphere, Hospitalizations, MeanA1, MeanD1, MeanI1, MedianA1, MedianD1, MedianI1, OBYear, Path1, fracinf, RiskAll, season, Setting_1, Trans1, Vomit))
+
+str(d_reduced)
 ```
 
 Your reduced dataset should contain 579 observations and 22 variables.
@@ -124,13 +191,31 @@ We can start by looking at missing data. While the `summary` function gives that
 ```{r check-reduced-data}
 # this code prints number of missing for each variable (assuming your dataframe is called d)
 # print(colSums(is.na(d))) 
+
+print(colSums(is.na(d_reduced)))
+
+visdat::vis_dat(d_reduced)
+visdat::vis_miss(d_reduced)
+
 # write code to use the visdat R package, add code that plots a heatmap of missing values  
 ```
 
-It looks like we have a lot of missing data for the `MeanA1` and `MedianA1` variables. If we wanted to keep those variables, we would be left with very few observations. So let's drop those two variables. After that, we will drop all observations that have missing data (seems to be `Hospitalization` and `Deaths`).
+It looks like we have a lot of missing data for the `MeanA1` and `MedianA1` variables. There's also a bit of missing information for the gg2c4 (69%) which I guess is lower than the 94% being shown for MedianA1 and MeanA1. I'm going to drop gg2c4 as well because if we drop those observations then we'll still be left with very few observation. After that, we will drop all observations that have missing data (seems to be `Hospitalization` and `Deaths`). 
 
 ```{r further-reduce-data}
 # write code to remove the 2 "A1" variables, then drop all remaining observations with NA
+
+d_reduced2 <- d_reduced %>%
+  select(-c(MeanA1, MedianA1, gg2c4)) %>%
+  drop_na()
+```
+OK So I came back to this and it seems like gg2c4 wasn't dropped? So I'll create another with it to see if I get the results I was supposed to get later on...
+```{r}
+d_gg2c4 <- d_reduced %>%
+  select(-c(MeanA1, MedianA1)) %>%
+  drop_na()
+
+#This drops my observations down to 151...so I'm just going to keep my data the way it was previously with the removal of gg2c4. 
 ```
 
 
@@ -138,12 +223,28 @@ Let's now check the format of each variable. Depending on how you loaded the dat
 
 ```{r further-clean-data}
 # write code to format variables as needed
+glimpse(d_reduced2)
+
+d_reduced2 <- as.data.frame(unclass(d_reduced2))
+d_reduced2$Vomit <- as.factor(d_reduced2$Vomit)
+str(d_reduced2)
 ```
 
 Take another look at the data. You should find that for the dataset, most things look reasonable, but the variable `Setting_1` has a lot of different levels/values. That many categories, most with only a single entry, will likely not be meaningful for modeling. One option is to drop the variable. But assume we think it's an important variable to include and we are especially interested in the difference between restaurant settings and other settings. We could then create a new variable that has only two levels, `Restaurant` and `Other`.
 
 ```{r recode-setting}
-#write code that creates a new variable called `Setting` based on `Setting_1` buth with only 2 levels, `Restaurant` and `Other`. Then remove the `Setting_1` variable. Note that restaurant is sometimes capitalized and sometimes not. You need to fix that first. For these lines of code, the 'Factor' chapter in R4DS might be helpful here.
+#write code that creates a new variable called `Setting` based on `Setting_1` but with only 2 levels, `Restaurant` and `Other`. Then remove the `Setting_1` variable. Note that restaurant is sometimes capitalized and sometimes not. You need to fix that first. For these lines of code, the 'Factor' chapter in R4DS might be helpful here.
+unique(d_reduced2$Setting_1)
+
+#It looks like there are some spelling mistakes and that sometimes it's capitalized and othertimes it is not. I need to get better at regular expressions so I really want to use that here. 
+
+d_reduced3 <- d_reduced2 %>%
+  mutate(Setting = ifelse(str_detect(d_reduced2$Setting_1, "[R|r]est*")== TRUE, "Restaurant", "Other"))
+d_reduced3 <- d_reduced3 %>%
+  select(-Setting_1)
+d_reduced3$Setting <- as.factor(d_reduced3$Setting)
+str(d_reduced3$Setting)
+
 ```
 
 
@@ -156,6 +257,13 @@ Next, let's create a few plots showing the outcome and the predictors.
 ```{r plots-1}
 #write code that produces plots showing our outcome of interest on the y-axis and each numeric predictor on the x-axis.
 #you can use the facet_wrap functionality in ggplot for it, or do it some other way.
+
+d_reduced3 %>%
+  gather(CasesAll, Deaths, Hospitalizations, MeanD1, MeanI1, MedianD1, MedianI1, RiskAll, OBYear, key = "var", value = "value") %>%
+  ggplot(aes(x = value, y = fracinf)) +
+    geom_point() +
+    facet_wrap(~ var, scales = "free")
+
 ```
 
 One thing I notice in the plots is that there are lots of zeros for many predictors and things look skewed. That's ok, but means we should probably standardize these predictors. One strange finding (that I could have caught further up when printing the numeric summaries, but didn't) is that there is (at least) one outbreak that has outbreak year reported as 0. That is, of course, wrong and needs to be fixed. There are different ways of fixing it, the best, of course, would be to trace it back and try to fix it with the right value. We won't do that here. Instead, we'll remove that observation.
@@ -163,16 +271,33 @@ One thing I notice in the plots is that there are lots of zeros for many predict
 ```{r remove-wrong-year}
 # write code that figures out which observation(s) have 0 years and remove those from the dataset.
 # do some quick check to make sure OByear values are all reasonable now
+
+d_reduced3 <- d_reduced3 %>%
+  filter(OBYear != 0)
+
+d_reduced3 %>%
+  ggplot(aes(x = OBYear)) +
+  geom_bar()
+
+#the graph for the years is looking reasonable. 
 ```
 
 Another useful check is to see if there are strong correlations between some of the numeric predictors. That might indicate collinearity, and some models can't handle that very well. In such cases, one might want to remove a predictor. We'll create a correlation plot of the numeric variables to inspect this.
 
 ```{r corrplot}
 # using e.g. the corrplot package (or any other you like), create a correlation plot of the numeric variables
+#My OBYear is actually coming up as a factor. So I"m going to switch that to numeric first, then do the correlation matrix. 
+
+d_reduced3$OBYear <- as.numeric(levels(d_reduced3$OBYear))[d_reduced3$OBYear]
+
+M <- d_reduced3 %>%
+  select(c(CasesAll, Deaths, Hospitalizations, MeanD1, MeanI1, MedianD1, MedianI1, RiskAll, OBYear, fracinf)) %>%
+  cor()
+corrplot(M, is.corr = FALSE, method = "number")
 ```
 
 
-It doesn't look like there are any very strong correlations between continuous variables, so we can keep them all for now.
+It doesn't look like there are any very strong correlations between continuous variables, so we can keep them all for now. I included the fracinfected just to see what it looked like with the rest of the variables. 
 
 
 Next, let's create plots for the categorical variables, again our main outcome of interest on the y-axis.
@@ -180,6 +305,12 @@ Next, let's create plots for the categorical variables, again our main outcome o
 ```{r plots-2}
 #write code that produces plots showing our outcome of interest on the y-axis and each categorical predictor on the x-axis.
 #you can use the facet_wrap functionality in ggplot for it, or do it some other way.
+
+d_reduced3 %>%
+  gather(Action1, Category, Country, Hemisphere, Path1, season, Trans1, Vomit, Setting, key = "var", value = "value") %>%
+  ggplot(aes(x = value, y = fracinf)) +
+    geom_point() +
+    facet_wrap(~ var, scales = "free")
 ```
 
 The plots do not look pretty, which is ok for exploratory. We can see that a few variables have categories with very few values (again, something we could have also seen using `summary`, but graphically it is usually easier to see). This will likely produce problems when we fit using cross-validation, so we should fix that. Options we have: 
@@ -193,10 +324,29 @@ Let's use a mix of these approaches. We'll drop the `Category` variable, we'll r
 ```{r clean-categorical}
 # write code that implements the cleaning steps described above.
 # then check again (e.g. with a plot) to make sure things worked
+
+d_reduced4 <- d_reduced3 %>%
+  select(-Category) %>%
+  filter(Hemisphere != "Unspecified")
+unique(d_reduced4$Hemisphere)
+unique(d_reduced3$Hemisphere)
+#I dropped the "Unspecified" observations in the dataset...but it turns out there actually wasn't any to drop.  Now I'll drop the levels of the factors for both the Action1 and Path1 to see what exactly I'm working with, and then I'll collapse the unknown and unspecified into just an unknown level. 
+levels(d_reduced$Action1)
+d_reduced4$Action1 <- fct_collapse(d_reduced4$Action1, Unknown = c("Unknown", "Unspecified"), Yes = "Yes")
+levels(d_reduced4$Path1)
+d_reduced4$Path1 <- fct_collapse(d_reduced4$Path1, Unknown = c("Unknown", "Unspecified"), Yes = "Yes", No = "No")
 ```
 
 
 At this step, you should have a dataframe containing 551 observations, and 19 variables: 1 outcome, 9 numeric/integer predictors, and 9 factor variables. There should be no missing values.
+
+I'm missing one variable, the gg variable, but I'm choosing not to add it back in. 
+
+```{r}
+summary(d_reduced4)
+str(d_reduced4)
+
+```
 
 
 # Model fitting
@@ -213,10 +363,10 @@ Depending on the data and question, we might want to reserve some of the data fo
 ```{r split-data}
 #this code does the data splitting. I still assume that your data is stored in the `d` object.
 #uncomment to run
-#set.seed(123)
-#trainset <- caret::createDataPartition(y = d$fracinf, p = 0.7, list = FALSE)
-#data_train = d[trainset,] #extract observations/rows for training, assign to new variable
-#data_test = d[-trainset,] #do the same for the test set
+set.seed(123)
+trainset <- caret::createDataPartition(y = d_reduced4$fracinf, p = 0.7, list = FALSE)
+data_train = d_reduced4[trainset,] #extract observations/rows for training, assign to new variable
+data_test = d_reduced4[-trainset,] #do the same for the test set
 ```
 
 :::note
@@ -230,6 +380,19 @@ Now let's begin with the model fitting. We'll start by looking at a _null model_
 ```{r clean-na}
 #write code that computes the RMSE for a null model, which is just the mean of the outcome
 #remember that from now on until the end, everything happens with the training data
+
+out_mean <- summary(mean(data_train$fracinf))
+out_data <- data_train$fracinf
+  
+SST_null <- sum( (out_mean - out_data)^2 )
+SST_null #total sum of squares so now we need to divide by the total number of observations
+
+MSE_null <- SST_null/360 #This is the mean squared error. so now we need to take the square root.
+
+RMSE_null <- (MSE_null)^0.5
+
+RMSE_null
+
 ```
 
 

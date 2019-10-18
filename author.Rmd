@@ -5,5 +5,5 @@ output:
     toc: FALSE
 ---
 
-If you want to learn more about me, you can visit [this website](LINK-TO-INTRODUCTION-PAGE).
+If you want to learn more about me, you can visit [this website](https://epid8060fall2019.github.io/Amanda-Introduction/).
 
