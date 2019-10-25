@@ -191,6 +191,11 @@ We can start by looking at missing data. While the `summary` function gives that
 ```{r check-reduced-data}
 # this code prints number of missing for each variable (assuming your dataframe is called d)
 # print(colSums(is.na(d))) 
+#10.23.19 I realized that the gg2c4 variable has so many NAs becuase they were supposed to be no. I'm going to change that to a factor instead of a character. 
+
+d_reduced$gg2c4[is.na(d_reduced$gg2c4)]<-"No"
+d_reduced$gg2c4 <- as.factor(d_reduced$gg2c4)
+
 
 print(colSums(is.na(d_reduced)))
 
@@ -202,22 +207,15 @@ visdat::vis_miss(d_reduced)
 
 It looks like we have a lot of missing data for the `MeanA1` and `MedianA1` variables. There's also a bit of missing information for the gg2c4 (69%) which I guess is lower than the 94% being shown for MedianA1 and MeanA1. I'm going to drop gg2c4 as well because if we drop those observations then we'll still be left with very few observation. After that, we will drop all observations that have missing data (seems to be `Hospitalization` and `Deaths`). 
 
+10.23.19 - Initially I dropped the gg2c4 but that was due to an error in the NAs. From here on out everything will be adjusted for the includsion of gg2c4.
+
 ```{r further-reduce-data}
 # write code to remove the 2 "A1" variables, then drop all remaining observations with NA
 
 d_reduced2 <- d_reduced %>%
-  select(-c(MeanA1, MedianA1, gg2c4)) %>%
-  drop_na()
-```
-OK So I came back to this and it seems like gg2c4 wasn't dropped? So I'll create another with it to see if I get the results I was supposed to get later on...
-```{r}
-d_gg2c4 <- d_reduced %>%
   select(-c(MeanA1, MedianA1)) %>%
   drop_na()
-
-#This drops my observations down to 151...so I'm just going to keep my data the way it was previously with the removal of gg2c4. 
 ```
-
 
 Let's now check the format of each variable. Depending on how you loaded the data, some variables might not be in the right format. Make sure everything that should be numeric is numeric/integer, everything that should be a factor is a factor. There should be no variable coded as `character`. Once all variables have the right format, take a look at the data again.
 
@@ -307,7 +305,7 @@ Next, let's create plots for the categorical variables, again our main outcome o
 #you can use the facet_wrap functionality in ggplot for it, or do it some other way.
 
 d_reduced3 %>%
-  gather(Action1, Category, Country, Hemisphere, Path1, season, Trans1, Vomit, Setting, key = "var", value = "value") %>%
+  gather(Action1, Category, Country, Hemisphere, Path1, season, Trans1, Vomit, Setting, gg2c4, key = "var", value = "value") %>%
   ggplot(aes(x = value, y = fracinf)) +
     geom_point() +
     facet_wrap(~ var, scales = "free")
@@ -340,8 +338,6 @@ d_reduced4$Path1 <- fct_collapse(d_reduced4$Path1, Unknown = c("Unknown", "Unspe
 
 At this step, you should have a dataframe containing 551 observations, and 19 variables: 1 outcome, 9 numeric/integer predictors, and 9 factor variables. There should be no missing values.
 
-I'm missing one variable, the gg variable, but I'm choosing not to add it back in. 
-
 ```{r}
 summary(d_reduced4)
 str(d_reduced4)
@@ -363,8 +359,8 @@ Depending on the data and question, we might want to reserve some of the data fo
 ```{r split-data}
 #this code does the data splitting. I still assume that your data is stored in the `d` object.
 #uncomment to run
-d_reduced4 <- d_reduced4[,c(13, 1:12, 14:18)] 
-#move the outcome to the first column. This will be needed laster
+d_reduced4 <- d_reduced4[,c(14, 1:13, 15:19)] 
+#move the outcome to the first column. This will be needed later
 
 set.seed(123)
 trainset <- caret::createDataPartition(y = d_reduced4$fracinf, p = 0.7, list = FALSE)
@@ -452,11 +448,11 @@ resultmat_lm[n-1, 2] = fit2_lm$results$RMSE
 #resultmat_knn[n-1, 2] = fit4_knn$results$RMSE
 
 print(fit2_lm)
-#RMSE: 0.2463327
+#RMSE: 0.2467017
 print(fit3_earth)
-#RMSE: 0.2537598
+#RMSE: 0.1324925
 print(fit4_knn)
-#RMSE: 0.1011739
+#RMSE: 0.1064147
 
 #report the RMSE for each method. Note that knn and earth perform some model tuning (we'll discuss this soon) and report multiple RMSE. Use the lowest value.
 ```
@@ -485,7 +481,7 @@ You'll see that several variables are flagged as having near-zero variance. Look
 
 ```{r}
 #write code that removes all variables with near zero variance from the data 
-#when we add the saveMetrics this doesn't work so I need to repeat the follwoing satement
+#when we add the saveMetrics this doesn't work so I need to repeat the following statement
 near_zero_pred <- nearZeroVar(data_train)
 data_train <- data_train[, -near_zero_pred]
 
@@ -515,15 +511,17 @@ stopCluster(cl)
 
 
 print(fit5_lm)
-#RMSE: 0.2473
-#previous fit 2 RMSE: 0.2463327
+#RMSE: 0.2478359
+#previous fit 2 RMSE: 0.2467017
 
 print(fit6_earth)
-#RMSE: 0.1338
-#previous fit 3 RMSE: 0.2537598
+#RMSE: 0.1339235
+#previous fit 3 RMSE: 0.1324925
+
 print(fit7_knn)
-#RMSE: 0.3339
-#previous fit 4 RMSE:0.1011739
+#RMSE: 0.2404201
+#previous fit 4 RMSE:0.1064147
+
 ```
 
 So it looks like the linear mode got a bit better, KNN actually got worse, and MARS didn't change much. Since for KNN, "the data is the model", removing some predictors might have had a detrimental impact. Though to say something more useful, I would want to look much closer into what's going on and if these pre-processing steps are useful or not. For this exercise, let's move on.
