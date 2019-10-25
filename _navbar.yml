@@ -5,7 +5,7 @@ left:
     menu:
       - text: "Continuous Outcome Analysis"
         href: "./Continuous_Outcome_Analysis.html"
-      - text: "Future Analysis"
+      - text: "Variable Outcome Analysis"
   - text: "About the Author"
     href: "./author.html""
 right:
