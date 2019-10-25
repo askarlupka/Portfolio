@@ -1,5 +1,6 @@
 ---
-title: "Simple Analysis Exercise Website"
+title: "Data Analysis - A process"
+subtitle: "Amanda Skarlupka"
 output: 
   html_document:
     toc: FALSE
