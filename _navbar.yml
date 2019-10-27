@@ -3,6 +3,10 @@ type: inverse
 left:
   - text: "Analyses"
     menu:
+      - text: "Tidy Tuesday - Attempt 1"
+        href: "./tidy_tuesday1.html"
+      - text: "Figure Reproduction"
+        href: "./reproducible-graph.html"
       - text: "Continuous Outcome Analysis"
         href: "./Continuous_Outcome_Analysis.html"
       - text: "Variable Outcome Analysis"

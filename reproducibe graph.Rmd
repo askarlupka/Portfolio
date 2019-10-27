@@ -1,0 +1,84 @@
+---
+title: "AmandaSkarlupka-Visualization"
+author: "Amanda Skarlupka"
+date: "9/26/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(dplyr)
+library(data.table)
+library(ggplot2)
+library(ggthemes)
+library(grid)
+```
+
+The graph that I decided to recreate was from FiveThirtyEight's github reposistory.
+
+![Bargraph](Images/BarGraph.png)
+
+I copied the data from the github repository. The first thing I want to do is look at the data and see what I have. I need to determine how many variables I'm working with and if they match to the data on the figure. If they don't match then I'll have to determine how they were manipulated. 
+
+```{r}
+
+library(readr)
+comma_survey <- read_csv("~/Documents/Data Science/AmandaSkarlupka-Visualization/Data/comma-survey.csv")
+head(comma_survey)
+
+comma_survey %>%
+  select(2) %>%
+  unique()
+
+comma_survey %>%
+  select(5) %>%
+  unique()
+```
+
+I'm not really seeing how they got the respondent's rating of their own grammar. So I'm just going to pull the data off of the graph itself. I created a table from the graph. 
+
+```{r}
+preference <- c("Prefer Oxford Comma", "Prefer Oxford Comma", "Prefer Oxford Comma", "Prefer Oxford Comma", "Prefer no Oxford Comma", "Prefer no Oxford Comma", "Prefer no Oxford Comma", "Prefer no Oxford Comma")
+rating <- c("Excellent", "Very Good", "Good", "Fair")
+percentage <- c(63, 61, 53, 41, 37, 39, 47, 59)
+column_names <- c("63%", "61", "53", "41", "37%", "39", "47", "59")
+
+graph.data <- data.frame(preference, rating, percentage, column_names, stringsAsFactors = TRUE)
+graph.data$rating <- factor(graph.data$rating, levels = c("Fair", "Good", "Very Good", "Excellent"))
+graph.data$preference <- factor(graph.data$preference, levels = c("Prefer Oxford Comma", "Prefer no Oxford Comma"))
+str(graph.data)
+```
+
+```{r}
+graph.data %>%
+  ggplot(aes(x = rating, y = percentage)) +
+  geom_bar(stat = "identity", fill = c("blue", "blue", "blue", "blue", "red", "red", "red", "red")) +
+  geom_text(aes(label = column_names, vjust=0, hjust=-0.25)) +
+  facet_grid(. ~ preference, space = ) +
+  ylim(0, 72) +
+  coord_flip() + 
+  labs(title = "Who Uses an Oxford Comma?", subtitle = "Comma preference vs. respondents' rating of their own grammar") +
+  theme_fivethirtyeight() +
+  theme(panel.border = element_blank(), panel.grid.major = element_blank(),
+panel.grid.minor = element_blank(), axis.title.x=element_blank(),axis.text.x=element_blank(),axis.ticks.x=element_blank())
+
+```
+
+# Resources used:
+
+I ended googling quite a bit. Here are the resources that I used and which questions I was trying to answer:
+
+I needed to expand the y axis so that the values of by bars were visible. I thought I could move the facets apart and it wouldn't cover the text. But it's not that the text was covered; the text was running out of the plotting area. So I used the code ylim() from <https://ggplot2.tidyverse.org/reference/lims.html>.
+
+I had to remove the x-axis labeling from the graph.  <https://stackoverflow.com/questions/35090883/remove-all-of-x-axis-labels-in-ggplot>
+
+I had to remove the background gridmarks from the graph. 
+<https://felixfan.github.io/ggplot2-remove-grid-background-margin/>
+
+I had to add the bar percentages. I initially had the actual values, but the excellent category has a "%" so I just created an extra variable for the labels. 
+<https://stackoverflow.com/questions/6455088/how-to-put-labels-over-geom-bar-in-r-with-ggplot2>
+
+I intially created my dataframe using this:  <https://www.dummies.com/programming/r/how-to-create-a-data-frame-from-scratch-in-r/>
+
+My ratings levels didn't translate over how I put them in for some reason, so I needed to explicitly state the levels to put the bars in the correct order. 
