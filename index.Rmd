@@ -1,13 +1,11 @@
 ---
-title: "Data Analysis - A process"
-subtitle: "Amanda Skarlupka"
+title: "Data Analysis"
+subtitle: "Visualization of the learning curve"
 output: 
   html_document:
     toc: FALSE
 ---
 
-This is a demo website to illustrate how one can build simple websites using RMarkdown and Github.
-
-This website contains the solution to the _Simple Analysis Exercise_.
+This website displays the data analysis portfolio of Amanda Skarlupka.  
 
 Click on the menu links above to see the analysis results and to learn more about me.
