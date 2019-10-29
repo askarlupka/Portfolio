@@ -252,7 +252,7 @@ levels(d$Country)
 #Combine Environmental and Waterborne transmission --- I also moved Unknown and Unspecified into the same level of Unspecified
 
 levels(d$Trans1)
-d$Trans1 <- fct_collapse(d$Trans, Environmental = c("Environmental", "Waterborne"), Unspecified = c("Unknown", "Unspecified"))
+d$Trans1 <- fct_collapse(d$Trans1, Environmental = c("Environmental", "Waterborne"), Unspecified = c("Unknown", "Unspecified"))
 levels(d$Trans1)
 
 #Recode the blanks for season into Unknown

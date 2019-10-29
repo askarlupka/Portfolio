@@ -5,7 +5,7 @@ output:
     theme: cosmo
     highlight: zenburn
     toc: true
-    toc_depth: 4
+    toc_depth: 3
     toc_float: 
       collapsed: false  
     css: customstyles.css
