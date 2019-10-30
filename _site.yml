@@ -1,4 +1,4 @@
-name: "Simple Analysis Exercise"
+name: "Data Analysis and Visualization Portfolio"
 output_dir: '.'
 output:
   html_document:

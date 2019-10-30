@@ -259,6 +259,12 @@ Let's do data splitting again. Use `caret` functions (or any other way you like)
 #write code that splits data into 70/30 train/test
 #call the 2 parts data_train and data_test
 set.seed(123)
+
+trainIndex <- createDataPartition(d$season, p = .7, 
+                                  list = FALSE, 
+                                  times = 1)
+data_train <- d[ trainIndex,]
+data_test  <- d[-trainIndex,]
 ```
 
 # Parallelization
@@ -284,6 +290,12 @@ To define a null model, we need to determine what performance measure we want to
 
 ```{r nullmodel-acc}
 #write code that computes accuracy for a null model that always predicts the most common category
+
+table(data_train$season) #winter is the most common category with 309 observations
+length(data_train$season) #there are a total of 668 observations
+null <- 309/668
+
+null
 ```
 
 You should find that the null model has an accuracy of around 0.46. 
@@ -314,7 +326,7 @@ print(resultmat)
 
 
 
-So it looks like most of the single predictor models don't have accuracy much better than the null. 2 exceptions are `StartMonth` and `EndMonth`. Well, we would expect that the outbreak season and the month at which the outbreak started (and ended) have a strong correlation. I kept those variables here to see if that would happen and get some reassurance that our model works ok. Of course, in a real analysis, keeping those seems silly, we wouldn't learn much from it (other than data entry appeared to have been done ok).
+So it looks like most of the single predictor models don't have accuracy much better than the null. 2 exceptions are `StartMonth` and `EndMonth`. Well, we would expect that the outbreak season and the month at which the outbreak started (and ended) have a strong correlation. I kept those variables here to see if that would happen and get some reassurance that our model works ok. Of course, in a real analysis, keeping those seems silly, we wouldn't learn much from it (other than data entry appeared to have been done ok). *Actually the data entry had 0's for some of the months for both variables*
 
 # Full model
 
@@ -357,15 +369,49 @@ Also, further below, I had problems fitting some of the models, the NA caused pr
 #write code that removes StartMonth and EndMonth from both training and test sets
 # then drop all observations with missing values in both trian and test sets
 # copy and paste the code from above that computes performance of a null model
+
+data_train <- data_train %>%
+  select(-(c(StartMonth, EndMonth))) %>%
+  na.omit()
+data_test <- data_test %>%
+  select(-c(StartMonth, EndMonth)) %>%
+  na.omit()
+
+train <- as.matrix(summary(data_train$season))
+null_model_2 <- max(train)/(length(data_train$season))
+null_model_2
+
 ```
 
 You should find a very similar null-model accuracy, around 0.46.
 
 Now, let's re-do the fit above fitting a single tree. I'll increase the tuneLength value a bit so the algorithm can try a few more parameter values.
 
-```{r fullfit-2}
+```{r fullfit-clean}
 #copy and paste the code from above that fits the single tree. set tuneLength to 20. 
 # look at model performance for different cp values. Also plot the tree.
+
+set.seed(1111) #makes each code block reproducible
+outcomename = "season"
+fitControl <- trainControl(method="repeatedcv",number=5,repeats=5) #setting CV method for caret
+Npred <- ncol(data_train)-1 # number of predictors
+resultmat <- data.frame(Variable = names(data_train)[-1], Accuracy = rep(0,Npred)) #store performance for each variable
+for (n in 2:ncol(data_train)) #loop over each predictor. For this to work, outcome must be in 1st column
+{
+  fit1_clean <- train( as.formula(paste(outcomename, "~",names(data_train)[n])) , data = data_train, method = "rpart", trControl = fitControl, na.action = na.pass, tuneLength = 20) 
+resultmat[n-1,2]= max(fit1$results$Accuracy)  
+}
+print(resultmat)
+
+
+fitControl <- trainControl(method="repeatedcv",number=5,repeats=5) 
+fit1_clean = train(season  ~ ., data=data_train, method="rpart",  trControl = fitControl, na.action = na.pass, tuneLength = 20) 
+print(fit1_clean$results)
+
+prp(fit1_clean$finalModel, extra = 1, type = 1)
+ww=17.8/2.54; wh=ww; #for saving plot
+dev.print(device=png,width=ww,height=wh,units="in",res=600,file="rparttree.png") #save tree to file
+
 ```
 
 With those variables removed, the tree model doesn't perform very well. Accuracy is similar to the null model. You can see that in the tree figure, the final nodes (leaves) show a lot of mis-predictions. Note again that only a few variables are used to build the tree, and OBYear shows up more than once. 
@@ -391,7 +437,7 @@ We can't plot a nice final tree anymore since the model is now a combination of 
 plot(fit2)
 ```
 
-This plot suggests that for around 4 randomly selected parameters and a minimum node size of 6, we get the best model. Note that there isn't much difference in model performance for several different values of the tuning parameters, and the overall model isn't that great either, an accuracy just shy of 0.5.
+This plot suggests that for around 4 randomly selected parameters and a minimum node size of 6, we get the best model. Note that there isn't much difference in model performance for several different values of the tuning parameters, and the overall model isn't that great either, an accuracy just shy of 0.5. *I'm actually getting that at 4 randomly selected parameters, that with 5 minimal node size, I get the best model.*
   
   
   
@@ -421,6 +467,11 @@ Here, we'll fit another random forest model but now use centering and scaling fo
 ```{r randomforest-2, echo=TRUE}
 # copy the random forest code from above. Add a statement to the train() function that centers and scales predictors.
 # save the result as fit4. plot model results.
+set.seed(1111) #makes each code block reproducible
+tuning_grid <- expand.grid( .mtry = seq(1,7,by=1), .splitrule = "gini", .min.node.size = seq(2,8,by=1) )
+fit4 = train(season ~ ., data=data_train, method="ranger",  trControl = fitControl, tuneGrid = tuning_grid, na.action = na.pass, preProcess = c("center", "scale")) 
+
+plot(fit4)
 ```
 
 It doesn't look like it helped a lot.
@@ -433,6 +484,10 @@ Ok, let's try one more. Since the trees don't seem to work too well, and a logis
 
 ```{r da, echo=TRUE}
 #write code that trains a pda model, use tuneLength 20. Save as fit5 and plot.
+set.seed(1111)
+fitControl <- trainControl(method="repeatedcv",number=5,repeats=5) 
+fit5 = train(season  ~ ., data=data_train, method="pda",  trControl = fitControl, na.action = na.pass, tuneLength = 20)
+plot(fit5)
 ```
 
 Ok, that doesn't look very good either. Alright, enough models, there just doesn't seem to be much information in the data that could help predict season. So let's start to wrap up.
@@ -455,6 +510,7 @@ This plot suggests that while none of the models are great, the random forest on
 # Evaluating the final model
 
 Even though we didn't really have any good model, and thus further evaluating it seems, in some sense pointless, for this exercise we'll look at our "best" model anyway. We'll declare the 1st random forest model (saved as `fit2`) to be the best. 
+*I'm not really seeing a difference between my random forests*
 
 Model uncertainty in the predictions is shown in the previous plot.
 
@@ -463,6 +519,17 @@ For categorical outcomes, we can't plot residuals. But we can look at the final 
 ```{r}
 #Write code to get model predictions for the outcome on the training data.
 #use predicted and actual outcomes, make a table and compute accuracy.
+
+#Write code to get model predictions for the outcome on the training data.
+#use predicted and actual outcomes, make a table and compute accuracy.
+
+#fit2 is the RF1 model
+prediction <- predict(fit2, newdata= data_train, interval="confidence")
+
+data_train$prediction <- prediction
+data_train$prediction <- as.factor(data_train$prediction)
+confusionMatrix(data = data_train$prediction, reference = data_train$season)
+
 ```
 
 You should see that the model gets a lot right (high numbers on the diagonal), but predicts winter more often than it should (last row). Accuracy in the training data is pretty good.
@@ -471,6 +538,13 @@ But we know that performance on the training set is not that meaningful, especia
 
 ```{r predict}
 #copy and paste the code from above, but now do it for the test set.
+
+prediction <- predict(fit2, newdata= data_test, interval="confidence")
+
+data_test$prediction <- prediction
+
+confusionMatrix(data = data_test$prediction, reference = data_test$season)
+
 ```
 
 Here, the confusion matrix doesn't look good at all. Off-diagonal entries are larger than diagonal, accuracy is about as good as a null model, and agrees with the cross-validated results. That last point is good, that means our cross-validation routine properly estimates the performance of "new" data. Of course, even this estimate on test data is a bit optimistic, since real new data is usually collected under slightly different circumstances and with different protocols, making it more likely that model performance is reduced.
